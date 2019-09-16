@@ -1,18 +1,22 @@
 # PyCM730
+
 Python Package for Robotis CM730 Robot Controller
 
 **Install dependencies**
+
 ```bash
 git clone https://github.com/ROBOTIS-GIT/DynamixelSDK.git
 cd DynamixelSDK/python
 python setup.py install
 ```
 **Disable root access for serial port**
+
 ```bash
 sudo apt remove modemmanager
 sudo usermod -a -G dialout username
 ```
 **Example code**
+
 ```python
 def main():
     cm730 = CM730()
@@ -31,3 +35,7 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+**Documentation**
+
+Will be updated as soon as possible

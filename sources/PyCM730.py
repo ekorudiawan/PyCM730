@@ -1,4 +1,5 @@
 from dynamixel_sdk import * 
+import numpy as np
 import time
 
 class MX28:
@@ -318,10 +319,11 @@ class CM730:
         acc_z = self.scaling(raw_z, 0.0, 1023.0, -4.0, 4.0)
         return acc_x, acc_y, acc_z, raw_x, raw_y, raw_z
 
-    def read_voltage(self):
-        voltage = self.read_byte(self.CM730_ID, self.P_VOLTAGE)
-        voltage = voltage / 10.0
-        return voltage
+    def read_voltage(self, in_volt=True):
+        value = self.read_byte(self.CM730_ID, self.P_VOLTAGE)
+        if in_volt:
+            value = value / 10.0
+        return value
 
     # Single servo access
     def servo_write_max_torque(self, ID, value):
@@ -340,32 +342,46 @@ class CM730:
         error = self.write_byte(ID, self.mx28.P_TORQUE_ENABLE, 0)
         return error
     
-    def servo_write_position(self, ID, value):
+    def servo_write_position(self, ID, value, in_radians=True):
+        if in_radians:
+            value = int(self.scaling(value, -np.pi, np.pi, 0, 4095))
         error = self.write_word(ID, self.mx28.P_GOAL_POSITION_L, value)
         return error
     
-    def servo_read_position(self, ID):
+    def servo_read_position(self, ID, in_radians=True):
         value = self.read_word(ID, self.mx28.P_PRESENT_POSITION_L)
+        if in_radians:
+            value = self.scaling(value, 0, 4095, -np.pi, np.pi, )
         return value
 
-    def servo_write_speed(self, ID, value):
+    def servo_write_speed(self, ID, value, in_rpm=True):
+        if in_rpm:
+            value = int(self.scaling(value, 0.0, 116.62, 0, 1023))
         error = self.write_word(ID, self.mx28.P_MOVING_SPEED_L, value)
         return error
     
-    def servo_read_speed(self, ID):
+    def servo_read_speed(self, ID, in_rpm=True):
         value = self.read_word(ID, self.mx28.P_PRESENT_SPEED_L)
+        if in_rpm:
+            value = self.scaling(value, 0, 1023, 0.0, 116.62)
         return value
 
-    def servo_write_torque(self, ID, value):
+    def servo_write_torque(self, ID, value, in_percent=True):
+        if in_percent:
+            value = int(self.scaling(value, 0.0, 100.0, 0, 1023))
         error = self.write_word(ID, self.mx28.P_TORQUE_LIMIT_L, value)
         return error
     
-    def servo_read_torque(self, ID):
+    def servo_read_torque(self, ID, in_percent=True):
         value = self.read_word(ID, self.mx28.P_PRESENT_LOAD_L)
+        if in_percent:
+            value = self.scaling(value, 0, 1023, 0.0, 100.0)
         return value
 
-    def servo_read_voltage(self, ID):
-        value = self.read_word(ID, self.mx28.P_PRESENT_VOLTAGE)
+    def servo_read_voltage(self, ID, in_volt=True):
+        value = self.read_byte(ID, self.mx28.P_PRESENT_VOLTAGE)
+        if in_volt:
+            value = value / 10.0
         return value
     
     def servo_read_temperature(self, ID):
@@ -414,8 +430,9 @@ class CM730:
             if comm_result != COMM_SUCCESS:
                 print("%s" % self.packetHandler.getTxRxResult(comm_result))
         for i in range(len(list_ID)):
-            value = groupBulkRead.getData(list_ID[i], self.mx28.P_PRESENT_POSITION_L, 2)
+            value = groupBulkRead.getData(list_ID[i], start_address, length)
             list_value.append(value)
+        groupBulkRead.clearParam()
         return list_value, error
 
     def servo_sync_enable_torque(self, list_ID):
@@ -426,30 +443,57 @@ class CM730:
         error = self.servo_sync_write(list_ID, [0]*len(list_ID), self.mx28.P_TORQUE_ENABLE, 1)
         return error
 
-    def servo_sync_write_position(self, list_ID, list_value):
+    def servo_sync_write_position(self, list_ID, list_value, in_angle=True):
+        if in_angle:
+            for i in range(len(list_value)):
+                list_value[i] = int(self.scaling(list_value[i], -np.pi, np.pi, 0, 4095))
         error = self.servo_sync_write(list_ID, list_value, self.mx28.P_GOAL_POSITION_L, 2)
         return error
 
-    def servo_sync_read_position(self, list_ID):
+    def servo_bulk_read_position(self, list_ID, in_angle=True):
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_POSITION_L, 2)
+        if in_angle:
+            for i in range(len(list_value)):
+                list_value[i] = self.scaling(list_value[i], 0, 4095, -np.pi, np.pi)
         return list_value, error
 
-    def servo_sync_write_speed(self, list_ID, list_value):
+    def servo_sync_write_speed(self, list_ID, list_value, in_rpm=True):
+        if in_rpm:
+            for i in range(len(list_value)):
+                list_value[i] = int(self.scaling(list_value[i], 0.0, 116.62, 0, 1023))
         error = self.servo_sync_write(list_ID, list_value, self.mx28.P_PRESENT_SPEED_L, 2)
         return error
 
-    def servo_bulk_read_speed(self, list_ID):
+    def servo_bulk_read_speed(self, list_ID, in_rpm=True):
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_SPEED_L, 2)
+        if in_rpm:
+            for i in range(len(list_value)):
+                list_value[i] = self.scaling(list_value[i], 0, 1023, 0.0, 116.62)
         return list_value, error
 
-    def servo_sync_write_torque(self, list_ID, list_value):
+    def servo_sync_write_torque(self, list_ID, list_value, in_percent=True):
+        if in_percent:
+            for i in range(len(list_value)):
+                list_value[i] = int(self.scaling(list_value[i], 0.0, 100.0, 0, 1023))
         error = self.servo_sync_write(list_ID, list_value, self.mx28.P_TORQUE_LIMIT_L, 2)
         return error
 
-    def servo_bulk_read_torque(self, list_ID):
+    # Nanti dibaca lagi
+    def servo_bulk_read_torque(self, list_ID, in_percent=True):
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_LOAD_L, 2)
+        if in_percent:
+            for i in range(len(list_value)):
+                list_value[i] = self.scaling(list_value[i], 0, 1023, 0.0, 100.0)
         return list_value, error
 
+    def servo_bulk_read_voltage(self, list_ID, in_volt=True):
+        list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_VOLTAGE, 1)
+        if in_volt:
+            for i in range(len(list_value)):
+                list_value[i] = list_value[i] / 10.0
+        return list_value, error
+
+    # temperature already in celcius
     def servo_bulk_read_temperature(self, list_ID):
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_TEMPERATURE, 2)
         return list_value, error
@@ -459,14 +503,24 @@ def main():
     cm730.connect()
     cm730.dxl_on()
     time.sleep(1)
-    cm730.check_ID(0, 255)
-    cm730.servo_sync_enable_torque([18, 21])
-    for i in range(0, 1000, 10):
-        cm730.servo_sync_write_position([18, 21], [i, i])
-        print(cm730.servo_sync_read_position([18, 21]))
+    # cm730.check_ID(0, 255)
+    cm730.servo_sync_disable_torque([18, 21])
+    for i in range(0, 1000, 1):
+        # cm730.servo_sync_write_position([18, 21], [i, i], in_angle=False)
+        # print(cm730.servo_bulk_read([18, 21], cm730.mx28.P_PRESENT_SPEED_L, 2))
+        print(cm730.servo_bulk_read_position([18, 21]))
+        # print(cm730.servo_read_speed(18))
+        print(cm730.servo_bulk_read_speed([18, 21]))
+        print(cm730.servo_bulk_read_torque([18, 21]))
+        print(cm730.servo_bulk_read_voltage([18, 21]))
+        print(cm730.servo_bulk_read_temperature([18, 21]))
+        # print(cm730.servo_read_temperature(18))
         time.sleep(0.5)
     cm730.servo_sync_disable_torque([18, 21])
     cm730.disconnect()
+    # list_value = 0
+    # list_value_angle = cm730.scaling(list_value, 0, 4095, -180, 180)
+    # print(list_value, list_value_angle)
     
 if __name__ == "__main__":
     main()
