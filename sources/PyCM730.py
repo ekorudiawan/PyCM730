@@ -294,30 +294,38 @@ class CM730:
         error = self.write_word(self.CM730_ID, self.P_LED_EYE_L, value)
         return error
 
-    # Ini return value perlu dirubah dalam bentuk button
     def read_button(self):
+        right_button = False
+        centre_button = False
         value = self.read_byte(self.CM730_ID, self.P_BUTTON)
-        button_start = 0
-        button_mode = 0
-        return value
+        if value == 3:
+            right_button = True
+            centre_button = True
+        elif value == 2:
+            centre_button = True
+        elif value == 1:
+            right_button = True
+        return centre_button, right_button
     
-    def read_gyro(self):
+    def read_gyro(self, in_dps=True):
         raw_x = self.read_word(self.CM730_ID, self.P_GYRO_X_L)
         raw_y = self.read_word(self.CM730_ID, self.P_GYRO_Y_L)
         raw_z = self.read_word(self.CM730_ID, self.P_GYRO_Z_L)
-        gyro_x = self.scaling(raw_x, 0.0, 1023.0, -500.0, 500.0)
-        gyro_y = self.scaling(raw_y, 0.0, 1023.0, -500.0, 500.0)
-        gyro_z = self.scaling(raw_z, 0.0, 1023.0, -500.0, 500.0)
-        return gyro_x, gyro_y, gyro_z, raw_x, raw_y, raw_z
+        if in_dps:
+            raw_x = self.scaling(raw_x, 0.0, 1023.0, -500.0, 500.0)
+            raw_y = self.scaling(raw_y, 0.0, 1023.0, -500.0, 500.0)
+            raw_z = self.scaling(raw_z, 0.0, 1023.0, -500.0, 500.0)
+        return raw_x, raw_y, raw_z
 
-    def read_accelerometer(self):
+    def read_accelerometer(self, in_g=True):
         raw_x = self.read_word(self.CM730_ID, self.P_ACCEL_X_L)
         raw_y = self.read_word(self.CM730_ID, self.P_ACCEL_Y_L)
         raw_z = self.read_word(self.CM730_ID, self.P_ACCEL_Z_L)
-        acc_x = self.scaling(raw_x, 0.0, 1023.0, -4.0, 4.0)
-        acc_y = self.scaling(raw_y, 0.0, 1023.0, -4.0, 4.0)
-        acc_z = self.scaling(raw_z, 0.0, 1023.0, -4.0, 4.0)
-        return acc_x, acc_y, acc_z, raw_x, raw_y, raw_z
+        if in_g:
+            raw_x = self.scaling(raw_x, 0.0, 1023.0, -4.0, 4.0)
+            raw_y = self.scaling(raw_y, 0.0, 1023.0, -4.0, 4.0)
+            raw_z = self.scaling(raw_z, 0.0, 1023.0, -4.0, 4.0)
+        return raw_x, raw_y, raw_z
 
     def read_voltage(self, in_volt=True):
         value = self.read_byte(self.CM730_ID, self.P_VOLTAGE)
@@ -375,7 +383,12 @@ class CM730:
     def servo_read_torque(self, ID, in_percent=True):
         value = self.read_word(ID, self.mx28.P_PRESENT_LOAD_L)
         if in_percent:
-            value = self.scaling(value, 0, 1023, 0.0, 100.0)
+            # CCW Direction
+            if value >= 0 and value <= 1023:
+                value = self.scaling(value, 0, 1023, 0, -100.0)
+            # CW Direction
+            elif value >= 1024 and value <= 2047:
+                value = self.scaling(value, 1024, 2047, 0, 100.0)
         return value
 
     def servo_read_voltage(self, ID, in_volt=True):
@@ -478,12 +491,16 @@ class CM730:
         error = self.servo_sync_write(list_ID, list_value, self.mx28.P_TORQUE_LIMIT_L, 2)
         return error
 
-    # Nanti dibaca lagi
     def servo_bulk_read_torque(self, list_ID, in_percent=True):
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_LOAD_L, 2)
         if in_percent:
             for i in range(len(list_value)):
-                list_value[i] = self.scaling(list_value[i], 0, 1023, 0.0, 100.0)
+                # CCW Direction
+                if list_value[i] >= 0 and list_value[i] <= 1023:
+                    list_value[i] = self.scaling(list_value[i], 0, 1023, 0, -100.0)
+                # CW Direction
+                elif list_value[i] >= 1024 and list_value[i] <= 2047:
+                    list_value[i] = self.scaling(list_value[i], 1024, 2047, 0, 100.0)
         return list_value, error
 
     def servo_bulk_read_voltage(self, list_ID, in_volt=True):
@@ -498,29 +515,31 @@ class CM730:
         list_value, error = self.servo_bulk_read(list_ID, self.mx28.P_PRESENT_TEMPERATURE, 2)
         return list_value, error
 
+    def all_servo_enable_torque(self):
+        list_ID = [i for i in range(23)]
+        self.servo_sync_enable_torque(list_ID)
+
+    def all_servo_disable_torque(self):
+        list_ID = [i for i in range(23)]
+        self.servo_sync_disable_torque(list_ID)
+
 def main():
     cm730 = CM730()
     cm730.connect()
     cm730.dxl_on()
     time.sleep(1)
-    # cm730.check_ID(0, 255)
-    cm730.servo_sync_disable_torque([18, 21])
-    for i in range(0, 1000, 1):
-        # cm730.servo_sync_write_position([18, 21], [i, i], in_angle=False)
-        # print(cm730.servo_bulk_read([18, 21], cm730.mx28.P_PRESENT_SPEED_L, 2))
-        print(cm730.servo_bulk_read_position([18, 21]))
-        # print(cm730.servo_read_speed(18))
-        print(cm730.servo_bulk_read_speed([18, 21]))
-        print(cm730.servo_bulk_read_torque([18, 21]))
-        print(cm730.servo_bulk_read_voltage([18, 21]))
-        print(cm730.servo_bulk_read_temperature([18, 21]))
-        # print(cm730.servo_read_temperature(18))
+    cm730.check_ID(0, 255)
+    cm730.servo_sync_enable_torque([19, 20])
+    for i in range(0, 100, 1):
+        print(cm730.read_button())
+        print(cm730.servo_bulk_read_position([19, 20]))
+        print(cm730.servo_bulk_read_speed([19, 20]))
+        print(cm730.servo_bulk_read_torque([19, 20]))
+        print(cm730.servo_bulk_read_voltage([19, 20]))
+        print(cm730.servo_bulk_read_temperature([19, 20]))
         time.sleep(0.5)
-    cm730.servo_sync_disable_torque([18, 21])
+    cm730.all_servo_disable_torque()
     cm730.disconnect()
-    # list_value = 0
-    # list_value_angle = cm730.scaling(list_value, 0, 4095, -180, 180)
-    # print(list_value, list_value_angle)
     
 if __name__ == "__main__":
     main()
